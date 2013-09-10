@@ -1,5 +1,4 @@
 <?php
-
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -23,31 +22,24 @@
  * @author    2012 Barry Oosthuizen
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+
 require_once '../../../config.php';
 require_once $CFG->libdir . '/gradelib.php';
 require_once $CFG->dirroot . '/grade/lib.php';
 require_once $CFG->dirroot . '/grade/report/multigrader/lib.php';
-
-
 require_once $CFG->dirroot . '/grade/report/multigrader/categorylib.php';
 
 // check box tree insert
-
 $PAGE->requires->js('/grade/report/multigrader/checkboxtree/js/jquery-latest.js', true);
 $PAGE->requires->js('/grade/report/multigrader/checkboxtree/js/jquery-ui.min.js', true);
 $PAGE->requires->js('/grade/report/multigrader/checkboxtree/js/jquery.checkboxtree.js', true);
-
-
 $PAGE->requires->css('/grade/report/multigrader/checkboxtree/css/themes/base/ui.all.css');
 $PAGE->requires->css('/grade/report/multigrader/checkboxtree/css/checkboxtree.css');
-
 // end of insert
-
 
 $courseid = required_param('id', PARAM_INT);        // course id
 $page = optional_param('page', 0, PARAM_INT);   // active page
 $edit = optional_param('edit', -1, PARAM_BOOL); // sticky editting mode
-
 $sortitemid = optional_param('sortitemid', 0, PARAM_ALPHANUM); // sort by which grade item
 $action = optional_param('action', 0, PARAM_ALPHAEXT);
 $move = optional_param('move', 0, PARAM_INT);
@@ -67,7 +59,7 @@ if (!$course = $DB->get_record('course', array('id' => $courseid))) {
     print_error('nocourseid');
 }
 require_login($course);
-$context = get_context_instance(CONTEXT_COURSE, $course->id);
+$context = context_course::instance($course->id);
 
 require_capability('gradereport/multigrader:view', $context);
 require_capability('moodle/grade:viewall', $context);
@@ -94,7 +86,7 @@ grade_regrade_final_grades($courseid);
 
 // Perform actions
 if (!empty($target) && !empty($action) && confirm_sesskey()) {
-    grade_report_multigrader::process_action($target, $action);
+    grade_report_grader::do_process_action($target, $action);
 }
 
 $reportname = get_string('pluginname', 'gradereport_multigrader');
@@ -229,5 +221,4 @@ if ($formsubmitted === "Yes") {
         }
     }
 }
-
 echo $OUTPUT->footer();

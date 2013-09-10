@@ -1,5 +1,4 @@
 <?php
-
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -22,6 +21,7 @@
  * @copyright 2007 Nicolas Connault
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+
 require_once($CFG->dirroot . '/grade/report/lib.php');
 require_once($CFG->libdir . '/tablelib.php');
 
@@ -31,7 +31,6 @@ require_once($CFG->libdir . '/tablelib.php');
  * @package gradereport_multigrader
  */
 class grade_report_multigrader extends grade_report {
-
     /**
      * The final grades.
      * @var array $grades
@@ -86,7 +85,8 @@ class grade_report_multigrader extends grade_report {
      * Capability check caching
      * */
     public $canviewhidden;
-    var $preferencespage = false;
+
+    var $preferencespage=false;
 
     /**
      * Length at which feedback will be truncated (to the nearest word) and an ellipsis be added.
@@ -107,7 +107,7 @@ class grade_report_multigrader extends grade_report {
         global $CFG;
         parent::__construct($courseid, $gpr, $context, $page);
 
-        $this->canviewhidden = has_capability('moodle/grade:viewhidden', get_context_instance(CONTEXT_COURSE, $this->course->id));
+        $this->canviewhidden = has_capability('moodle/grade:viewhidden', context_course::instance($this->course->id));
 
         // load collapsed settings for this report
         if ($collapsed = get_user_preferences('grade_report_multigrader_collapsed_categories')) {
@@ -181,7 +181,7 @@ class grade_report_multigrader extends grade_report {
         // Were any changes made?
         $changedgrades = false;
 
-        foreach ($data as $varname => $postedvalue) {
+        foreach ($data as $varname => $students) {
 
             $needsupdate = false;
 
@@ -194,9 +194,10 @@ class grade_report_multigrader extends grade_report {
                 continue;
             }
 
-            $gradeinfo = explode("_", $varname);
-            $userid = clean_param($gradeinfo[1], PARAM_INT);
-            $itemid = clean_param($gradeinfo[2], PARAM_INT);
+            foreach ($students as $userid => $items) {
+                $userid = clean_param($userid, PARAM_INT);
+                foreach ($items as $itemid => $postedvalue) {
+                    $itemid = clean_param($itemid, PARAM_INT);
 
             // Was change requested?
             $oldvalue = $this->grades[$userid][$itemid];
@@ -215,6 +216,7 @@ class grade_report_multigrader extends grade_report {
                     }
                 } else {
                     // The grade item uses a numeric scale
+
                     // Format the finalgrade from the DB so that it matches the grade from the client
                     if ($postedvalue === format_float($oldvalue->finalgrade, $oldvalue->grade_item->get_decimals())) {
                         continue;
@@ -222,6 +224,7 @@ class grade_report_multigrader extends grade_report {
                 }
 
                 $changedgrades = true;
+
             } else if ($datatype === 'feedback') {
                 if ($oldvalue->feedback === $postedvalue) {
                     continue;
@@ -265,6 +268,7 @@ class grade_report_multigrader extends grade_report {
                     $gradestr->itemname = $gradeitem->get_name();
                     $warnings[] = get_string($errorstr, 'grades', $gradestr);
                 }
+
             } else if ($datatype == 'feedback') {
                 $finalgrade = false;
                 $trimmed = trim($postedvalue);
@@ -300,6 +304,8 @@ class grade_report_multigrader extends grade_report {
                 $this->grades[$userid][$itemid]->feedback = $feedback;
             }
         }
+            }
+        }
 
         if ($changedgrades) {
             // If a final grade was overriden reload grades so dependent grades like course total will be correct
@@ -308,6 +314,7 @@ class grade_report_multigrader extends grade_report {
 
         return $warnings;
     }
+
 
     /**
      * Setting the sort order, this depends on last state
@@ -397,6 +404,7 @@ class grade_report_multigrader extends grade_report {
 
             $sortjoin = "LEFT JOIN {grade_grades} g ON g.userid = u.id AND g.itemid = $this->sortitemid";
             $sort = "g.finalgrade $this->sortorder";
+
         } else {
             $sortjoin = '';
             switch ($this->sortitemid) {
@@ -405,6 +413,9 @@ class grade_report_multigrader extends grade_report {
                     break;
                 case 'firstname':
                     $sort = "u.firstname $this->sortorder, u.lastname $this->sortorder";
+                    break;
+                case 'email':
+                    $sort = "u.email $this->sortorder";
                     break;
                 case 'idnumber':
                 default:
@@ -442,7 +453,7 @@ class grade_report_multigrader extends grade_report {
             $this->userselect = "AND g.userid $usql";
             $this->userselect_params = $uparams;
 
-            //add a flag to each user indicating whether their enrolment is active
+            // Add a flag to each user indicating whether their enrolment is active.
             $sql = "SELECT ue.userid
                       FROM {user_enrolments} ue
                       JOIN {enrol} e ON e.id = ue.enrolid
@@ -455,9 +466,17 @@ class grade_report_multigrader extends grade_report {
             $params = array_merge($uparams, array('estatus' => ENROL_INSTANCE_ENABLED, 'uestatus' => ENROL_USER_ACTIVE, 'courseid' => $coursecontext->instanceid));
             $useractiveenrolments = $DB->get_records_sql($sql, $params);
 
+            $defaultgradeshowactiveenrol = !empty($CFG->grade_report_showonlyactiveenrol);
+            $showonlyactiveenrol = get_user_preferences('grade_report_showonlyactiveenrol', $defaultgradeshowactiveenrol);
+            $showonlyactiveenrol = $showonlyactiveenrol || !has_capability('moodle/course:viewsuspendedusers', $coursecontext);
             foreach ($this->users as $user) {
+                // If we are showing only active enrolments, then remove suspended users from list.
+                if ($showonlyactiveenrol && !array_key_exists($user->id, $useractiveenrolments)) {
+                    unset($this->users[$user->id]);
+                } else {
                 $this->users[$user->id]->suspendedenrolment = !array_key_exists($user->id, $useractiveenrolments);
             }
+        }
         }
 
         return $this->users;
@@ -509,10 +528,11 @@ class grade_report_multigrader extends grade_report {
     /**
      * Builds and returns a div with on/off toggles.
      * @return string HTML code
+     * @deprecated since 2.4 as it appears not to be used any more.
      */
     public function get_toggles_html() {
         global $CFG, $USER, $COURSE, $OUTPUT;
-
+        debugging('Call to deprecated function grade_report_grader::get_toggles_html().', DEBUG_DEVELOPER);
         $html = '';
 
 
@@ -533,10 +553,11 @@ class grade_report_multigrader extends grade_report {
      * @param string $type The type of toggle
      * @param bool $return Whether to return the HTML string rather than printing it
      * @return void
+    * @deprecated since 2.4 as it appears not to be used any more.
      */
     public function print_toggle($type) {
         global $CFG, $OUTPUT;
-
+        debugging('Call to deprecated function grade_report_grader::print_toggle().', DEBUG_DEVELOPER);
         $icons = array('eyecons' => 't/hide',
             'calculations' => 't/calc',
             'locks' => 't/lock',
@@ -592,7 +613,6 @@ class grade_report_multigrader extends grade_report {
         $rows = array();
 
         $showuserimage = $this->get_pref('showuserimage');
-        $fixedstudents = $this->is_fixed_students();
 
         $strfeedback = $this->get_lang_string("feedback");
         $strgrade = $this->get_lang_string('grade');
@@ -812,7 +832,7 @@ class grade_report_multigrader extends grade_report {
                     $itemcell->attributes['class'] = $type . ' ' . $catlevel . ' highlightable';
 
                     if ($element['object']->is_hidden()) {
-                        $itemcell->attributes['class'] .= ' hidden';
+                        $itemcell->attributes['class'] .= ' dimmed_text';
                     }
 
                     $itemcell->colspan = $colspan;
@@ -1337,6 +1357,7 @@ class grade_report_multigrader extends grade_report {
                 // Determine which display type to use for this average
                 if ($averagesdisplaytype == GRADE_REPORT_PREFERENCE_INHERIT) { // no ==0 here, please resave the report and user preferences
                     $displaytype = $item->get_displaytype();
+
                 } else {
                     $displaytype = $averagesdisplaytype;
                 }
@@ -1344,6 +1365,7 @@ class grade_report_multigrader extends grade_report {
                 // Override grade_item setting if a display preference (not inherit) was set for the averages
                 if ($averagesdecimalpoints == GRADE_REPORT_PREFERENCE_INHERIT) {
                     $decimalpoints = $item->get_decimals();
+
                 } else {
                     $decimalpoints = $averagesdecimalpoints;
                 }
@@ -1352,6 +1374,7 @@ class grade_report_multigrader extends grade_report {
                     $avgcell = new html_table_cell();
                     $avgcell->text = '-';
                     $avgrow->cells[] = $avgcell;
+
                 } else {
                     $sum = $sumarray[$item->id];
                     $avgradeval = $sum / $meancount;
@@ -1406,6 +1429,7 @@ class grade_report_multigrader extends grade_report {
             if ($this->get_pref('showlocks')) {
                 $lockunlockicon = $this->gtree->get_locking_icon($element, $this->gpr);
             }
+
         }
 
         $gradeanalysisicon = '';
@@ -1437,9 +1461,11 @@ class grade_report_multigrader extends grade_report {
             if (in_array($element['object']->id, $this->collapsed['aggregatesonly'])) {
                 $url->param('action', 'switch_plus');
                 $icon = $OUTPUT->action_icon($url, new pix_icon('t/switch_plus', $strswitchplus));
+
             } else if (in_array($element['object']->id, $this->collapsed['gradesonly'])) {
                 $url->param('action', 'switch_whole');
                 $icon = $OUTPUT->action_icon($url, new pix_icon('t/switch_whole', $strswitchwhole));
+
             } else {
                 $url->param('action', 'switch_minus');
                 $icon = $OUTPUT->action_icon($url, new pix_icon('t/switch_minus', $strswitchminus));
@@ -1449,13 +1475,17 @@ class grade_report_multigrader extends grade_report {
         return $icon;
     }
 
+    public function process_action($target, $action) {
+        return self::do_process_action($target, $action);
+    }
+
     /**
      * Processes a single action against a category, grade_item or grade.
      * @param string $target eid ({type}{id}, e.g. c4 for category4)
      * @param string $action Which action to take (edit, delete etc...)
      * @return
      */
-    public function process_action($target, $action) {
+    public static function do_process_action($target, $action) {
         // TODO: this code should be in some grade_tree static method
         $targettype = substr($target, 0, 1);
         $targetid = substr($target, 1);
@@ -1534,12 +1564,6 @@ class grade_report_multigrader extends grade_report {
         $strsortdesc = $this->get_lang_string('sortdesc', 'grades');
         $strfirstname = $this->get_lang_string('firstname');
         $strlastname = $this->get_lang_string('lastname');
-
-        /**
-          $firstlink = html_writer::link(new moodle_url($this->baseurl, array('sortitemid'=>'firstname')), $strfirstname);
-          $lastlink = html_writer::link(new moodle_url($this->baseurl, array('sortitemid'=>'lastname')), $strlastname);
-         *
-         */
 
         $firstlink = $strfirstname;
         $lastlink = $strlastname;

@@ -33,13 +33,13 @@ $userid = optional_param('userid', false, PARAM_INT);
 $itemid = optional_param('itemid', false, PARAM_INT);
 $type = optional_param('type', false, PARAM_ALPHA);
 $action = optional_param('action', false, PARAM_ALPHA);
-$newvalue = optional_param('newvalue', false, PARAM_MULTILANG);
+$newvalue = optional_param('newvalue', false, PARAM_TEXT);
 
 /// basic access checks
 if (!$course = $DB->get_record('course', array('id' => $courseid))) {
     print_error('nocourseid');
 }
-$context = get_context_instance(CONTEXT_COURSE, $course->id);
+$context = context_course::instance($course->id);
 require_login($course);
 
 switch ($action) {
@@ -81,10 +81,13 @@ switch ($action) {
                 // Warn if the grade is out of bounds.
                 if (is_null($finalgrade)) {
                     // ok
-                } else if ($finalgrade < $grade_item->grademin) {
+                } else {
+                    $bounded = $grade_item->bounded_grade($finalgrade);
+                    if ($bounded > $finalgrade) {
                     $errorstr = 'lessthanmin';
-                } else if ($finalgrade > $grade_item->grademax) {
+                    } else if ($bounded < $finalgrade) {
                     $errorstr = 'morethanmax';
+                }
                 }
 
                 if ($errorstr) {

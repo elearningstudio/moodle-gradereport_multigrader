@@ -23,8 +23,7 @@ function cc_print_whole_category_list_menu($category=NULL, $displaylist=NULL, $p
         $category->id = "0";
     }
 
-
-    if ($categories = get_child_categories($category->id)) {   // Print all the children recursively
+    if ($categories = coursecat::get($category->id)->get_children()) {   // Print all the children recursively
         $countcats = count($categories);
         $count = 0;
         $first = true;
