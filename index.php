@@ -1,6 +1,5 @@
 <?php
-
-// This file is part of Moodle - http://moodle.org/
+// This file is part of the Multi Course Grader report for Moodle by Barry Oosthuizen http://elearningstudio.co.uk
 //
 // Moodle is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -19,50 +18,37 @@
  * The gradebook multi grader report
  *
  * @package   gradereport_multigrader
- * @copyright 2007 Moodle Pty Ltd (http://moodle.com)
- * @author    2012 Barry Oosthuizen
+ * @copyright 2012 onwards Barry Oosthuizen http://elearningstudio.co.uk
+ * @author    Barry Oosthuizen
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 require_once '../../../config.php';
 require_once $CFG->libdir . '/gradelib.php';
 require_once $CFG->dirroot . '/grade/lib.php';
 require_once $CFG->dirroot . '/grade/report/multigrader/lib.php';
-
-
 require_once $CFG->dirroot . '/grade/report/multigrader/categorylib.php';
-
-// check box tree insert
 
 $PAGE->requires->js('/grade/report/multigrader/checkboxtree/js/jquery-latest.js', true);
 $PAGE->requires->js('/grade/report/multigrader/checkboxtree/js/jquery-ui.min.js', true);
 $PAGE->requires->js('/grade/report/multigrader/checkboxtree/js/jquery.checkboxtree.js', true);
-
-
 $PAGE->requires->css('/grade/report/multigrader/checkboxtree/css/themes/base/ui.all.css');
 $PAGE->requires->css('/grade/report/multigrader/checkboxtree/css/checkboxtree.css');
 
-// end of insert
-
-
 $courseid = required_param('id', PARAM_INT);        // course id
 $page = optional_param('page', 0, PARAM_INT);   // active page
-$edit = optional_param('edit', -1, PARAM_BOOL); // sticky editting mode
-
 $sortitemid = optional_param('sortitemid', 0, PARAM_ALPHANUM); // sort by which grade item
 $action = optional_param('action', 0, PARAM_ALPHAEXT);
-$move = optional_param('move', 0, PARAM_INT);
-$type = optional_param('type', 0, PARAM_ALPHA);
 $target = optional_param('target', 0, PARAM_ALPHANUM);
 $toggle = optional_param('toggle', NULL, PARAM_INT);
 $toggle_type = optional_param('toggle_type', 0, PARAM_ALPHANUM);
 
-// mutti grader form
+// Multi grader form.
 $formsubmitted = optional_param('formsubmitted', 0, PARAM_TEXT);
-// end of multi grader form
+// End of multi grader form.
 
 $PAGE->set_url(new moodle_url('/grade/report/multigrader/index.php', array('id' => $courseid)));
 
-/// basic access checks
+// Basic access checks.
 if (!$course = $DB->get_record('course', array('id' => $courseid))) {
     print_error('nocourseid');
 }
@@ -72,35 +58,30 @@ $context = get_context_instance(CONTEXT_COURSE, $course->id);
 require_capability('gradereport/multigrader:view', $context);
 require_capability('moodle/grade:viewall', $context);
 
-// return tracking object
+// Return tracking object.
 $gpr = new grade_plugin_return(array('type' => 'report', 'plugin' => 'multigrader', 'courseid' => $courseid, 'page' => $page));
 
-// last selected report session tracking
+// Last selected report session tracking.
 if (!isset($USER->grade_last_report)) {
     $USER->grade_last_report = array();
 }
 $USER->grade_last_report[$course->id] = 'multigrader';
 
-
-$gradeserror = array();
-
-// Handle toggle change request
+// Handle toggle change request.
 if (!is_null($toggle) && !empty($toggle_type)) {
     set_user_preferences(array('grade_report_show' . $toggle_type => $toggle));
 }
 
-//first make sure we have proper final grades - this must be done before constructing of the grade tree
+// First make sure we have proper final grades - this must be done before constructing of the grade tree.
 grade_regrade_final_grades($courseid);
 
-// Perform actions
+// Perform actions.
 if (!empty($target) && !empty($action) && confirm_sesskey()) {
     grade_report_multigrader::process_action($target, $action);
 }
-
 $reportname = get_string('pluginname', 'gradereport_multigrader');
 
 // Print header
-
 print_grade_page_head($COURSE->id, 'report', 'multigrader', $reportname, false);
 ?>
 <script type="text/javascript">
@@ -125,7 +106,7 @@ echo '<br/><br/>';
 echo '<form method="post" action="index.php">';
 echo '<div id="categorylist">';
 echo '<ul class="unorderedlisttree" id="docheckchildren">';
-cc_print_whole_category_list_menu();
+gradereport_multigrader_print_category();
 
 echo '</ul>';
 echo '<div><input type="hidden" name="id" value="' . $courseid . '"/></div>';
@@ -155,17 +136,12 @@ if ($formsubmitted === "Yes") {
     if (!empty($selectedcourses)) {
 
         $courselist = implode(",", $selectedcourses);
-
         $sql = "select * FROM mdl_course WHERE id IN(" . $courselist . ") ORDER BY shortname";
-
-        Global $DB;
         $courses = $DB->get_records_sql($sql);
 
         foreach ($courses as $thiscourse) {
-
             $courseid = $thiscourse->id;
             $context = get_context_instance(CONTEXT_COURSE, $courseid);
-
             if (has_capability('moodle/grade:viewall', $context)) {
                 if (has_capability('gradereport/multigrader:view', $context)) {
 
@@ -175,7 +151,7 @@ if ($formsubmitted === "Yes") {
                     echo '<a href="' . $CFG->wwwroot . '/grade/export/xml/index.php?id=' . $thiscourse->id . '"><img src="' . $CFG->wwwroot . '/grade/report/multigrader/pix/xml.gif" alt="' . get_string('xml:view', 'gradeexport_xml') . '"/></a>';
                     echo '<a href="' . $CFG->wwwroot . '/grade/export/txt/index.php?id=' . $thiscourse->id . '"><img src="' . $CFG->wwwroot . '/grade/report/multigrader/pix/text.gif" alt="' . get_string('txt:view', 'gradeexport_txt') . '"/></a>';
                     $gpr = new grade_plugin_return(array('type' => 'report', 'plugin' => 'multigrader', 'courseid' => $courseid, 'page' => $page));
-                    // basic access checks
+                    // Basic access checks.
                     $conditions = array("id" => $thiscourse->id);
                     if (!$course = $DB->get_record('course', $conditions)) {
                         print_error('nocourseid');
@@ -183,44 +159,39 @@ if ($formsubmitted === "Yes") {
 
                     $context = get_context_instance(CONTEXT_COURSE, $thiscourse->id);
 
-
-                    //Initialise the multi grader report object that produces the table
-                    //the class grade_report_grader_ajax was removed as part of MDL-21562
+                    // Initialise the multi grader report object that produces the table
+                    // The class grade_report_grader_ajax was removed as part of MDL-21562.
                     $report = new grade_report_multigrader($courseid, $gpr, $context, $page, $sortitemid);
 
-                    // processing posted grades & feedback here
+                    // Processing posted grades & feedback here.
                     if ($data = data_submitted() and confirm_sesskey() and has_capability('moodle/grade:edit', $context)) {
                         $warnings = $report->process_data($data);
                     } else {
                         $warnings = array();
                     }
-
-                    // final grades MUST be loaded after the processing
+                    // Final grades MUST be loaded after the processing.
                     $report->load_users();
                     $numusers = $report->get_numusers();
                     $report->load_final_grades();
 
-
                     echo '<div class="clearer"></div>';
-                    // echo $report->get_toggles_html();
-                    //show warnings if any
+                    // Show warnings if any.
                     foreach ($warnings as $warning) {
                         echo $OUTPUT->notification($warning);
                     }
 
                     $studentsperpage = $report->get_students_per_page();
-                    // Don't use paging if studentsperpage is empty or 0 at course AND site levels
+                    // Don't use paging if studentsperpage is empty or 0 at course AND site levels.
                     if (!empty($studentsperpage)) {
                         echo $OUTPUT->paging_bar($numusers, $report->page, $studentsperpage, $report->pbarurl);
                     }
 
                     $reporthtml = $report->get_grade_table();
 
-                    // print submit button
+                    // Print submit button.
                     echo $reporthtml;
 
-
-                    // prints paging bar at bottom for large pages
+                    // Prints paging bar at bottom for large pages.
                     if (!empty($studentsperpage) && $studentsperpage >= 20) {
                         echo $OUTPUT->paging_bar($numusers, $report->page, $studentsperpage, $report->pbarurl);
                     }
@@ -229,5 +200,4 @@ if ($formsubmitted === "Yes") {
         }
     }
 }
-
 echo $OUTPUT->footer();

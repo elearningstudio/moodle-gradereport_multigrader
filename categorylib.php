@@ -1,6 +1,27 @@
 <?php
+// This file is part of the Multi Course Grader report for Moodle by Barry Oosthuizen http://elearningstudio.co.uk
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-function cc_print_whole_category_list_menu($category=NULL, $displaylist=NULL, $parentslist=NULL, $depth=-1, $files = true) {
+/*
+ *
+ * @package   gradereport_multigrader
+ * @copyright 2012 onwards Barry Oosthuizen http://elearningstudio.co.uk
+ * @author    Barry Oosthuizen
+ * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+function gradereport_multigrader_print_category($category=NULL, $displaylist=NULL, $parentslist=NULL, $depth=-1, $files = true) {
 
     Global $CFG;
     /// Recursive function to print out all the categories in a nice format
@@ -13,7 +34,7 @@ function cc_print_whole_category_list_menu($category=NULL, $displaylist=NULL, $p
     if ($category) {
 
         if ($category->visible or has_capability('moodle/course:update', get_context_instance(CONTEXT_SYSTEM))) {
-            cc_print_category_info_menu($category, $depth, $files);
+            gradereport_multigrader_print_category_info($category, $depth, $files);
         } else {
             return;  // Don't bother printing children of invisible categories
         }
@@ -42,14 +63,14 @@ function cc_print_whole_category_list_menu($category=NULL, $displaylist=NULL, $p
             $down = $last ? false : true;
             $first = false;
 
-            cc_print_whole_category_list_menu($cat, $displaylist, $parentslist, $depth + 1, $files);
+            gradereport_multigrader_print_category($cat, $displaylist, $parentslist, $depth + 1, $files);
 
             echo '</ul></li>';
         }
     }
 }
 
-function cc_print_category_info_menu($category, $depth, $files = false) {
+function gradereport_multigrader_print_category_info($category, $depth, $files = false) {
 /// Prints the category info in indented fashion
 /// This function is only used by print_whole_category_list() above
     Global $CFG; Global $DB;
