@@ -27,6 +27,7 @@ require_once '../../../config.php';
 require_once $CFG->libdir . '/gradelib.php';
 require_once $CFG->dirroot . '/grade/lib.php';
 require_once $CFG->dirroot . '/grade/report/multigrader/lib.php';
+require_once $CFG->libdir . '/coursecatlib.php';
 require_once $CFG->dirroot . '/grade/report/multigrader/categorylib.php';
 
 $PAGE->requires->js('/grade/report/multigrader/checkboxtree/js/jquery-latest.js', true);
