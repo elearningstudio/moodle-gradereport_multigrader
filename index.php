@@ -135,7 +135,7 @@ if ($formsubmitted === "Yes") {
 
     if (!empty($selectedcourses)) {
 
-        list($courselist, $params) = $DB->get_in_or_equal($selectedcourses, SQL_PARAMS_NAMED, 'm', false);
+        list($courselist, $params) = $DB->get_in_or_equal($selectedcourses, SQL_PARAMS_NAMED, 'm');
         $sql = "select * FROM {course} WHERE id $courselist ORDER BY shortname";
         $courses = $DB->get_records_sql($sql, $params);
 
