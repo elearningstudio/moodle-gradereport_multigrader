@@ -84,7 +84,8 @@ class grade_report_multigrader extends grade_report {
 
     /**
      * Capability check caching
-     * */
+     * @var boolean $canviewhidden
+     */
     public $canviewhidden;
 
     var $preferencespage=false;
@@ -274,7 +275,7 @@ class grade_report_multigrader extends grade_report {
                 $finalgrade = false;
                 $trimmed = trim($postedvalue);
                 if (empty($trimmed)) {
-                    $feedback = NULL;
+                    $feedback = null;
                 } else {
                     $feedback = $postedvalue;
                 }
@@ -388,27 +389,28 @@ class grade_report_multigrader extends grade_report {
             return;
         }
 
-        //limit to users with a gradeable role
+        // Limit to users with a gradeable role.
         list($gradebookrolessql, $gradebookrolesparams) = $DB->get_in_or_equal(explode(',', $this->gradebookroles), SQL_PARAMS_NAMED, 'grbr0');
 
-        //limit to users with an active enrollment
+        // Limit to users with an active enrollment.
         list($enrolledsql, $enrolledparams) = get_enrolled_sql($this->context);
 
-        //fields we need from the user table
+        // Fields we need from the user table.
         $userfields = user_picture::fields('u', get_extra_user_fields($this->context));
 
-        $sortjoin = $sort = $params = null;
+        // We want to query both the current context and parent contexts.
+        list($relatedctxsql, $relatedctxparams) = $DB->get_in_or_equal($this->context->get_parent_context_ids(true), SQL_PARAMS_NAMED, 'relatedctx');
 
-        //if the user has clicked one of the sort asc/desc arrows
+        // If the user has clicked one of the sort asc/desc arrows.
         if (is_numeric($this->sortitemid)) {
-            $params = array_merge(array('gitemid' => $this->sortitemid), $gradebookrolesparams, $this->groupwheresql_params, $enrolledparams);
+            $params = array_merge(array('gitemid' => $this->sortitemid), $gradebookrolesparams, $this->userwheresql_params,
+                    $this->groupwheresql_params, $enrolledparams, $relatedctxparams);
 
             $sortjoin = "LEFT JOIN {grade_grades} g ON g.userid = u.id AND g.itemid = $this->sortitemid";
             $sort = "g.finalgrade $this->sortorder";
-
         } else {
             $sortjoin = '';
-            switch ($this->sortitemid) {
+            switch($this->sortitemid) {
                 case 'lastname':
                     $sort = "u.lastname $this->sortorder, u.firstname $this->sortorder";
                     break;
@@ -424,7 +426,7 @@ class grade_report_multigrader extends grade_report {
                     break;
             }
 
-            $params = array_merge($gradebookrolesparams, $this->groupwheresql_params, $enrolledparams);
+            $params = array_merge($gradebookrolesparams, $this->userwheresql_params, $this->groupwheresql_params, $enrolledparams, $relatedctxparams);
         }
 
         $sql = "SELECT $userfields
@@ -436,12 +438,12 @@ class grade_report_multigrader extends grade_report {
                            SELECT DISTINCT ra.userid
                              FROM {role_assignments} ra
                             WHERE ra.roleid IN ($this->gradebookroles)
-                              AND ra.contextid " . get_related_contexts_string($this->context) . "
+                              AND ra.contextid $relatedctxsql
                        ) rainner ON rainner.userid = u.id
                    AND u.deleted = 0
+                   $this->userwheresql
                    $this->groupwheresql
               ORDER BY $sort";
-
         $studentsperpage = $this->get_students_per_page();
         $this->users = $DB->get_records_sql($sql, $params, $studentsperpage * $this->page, $studentsperpage);
 
@@ -462,9 +464,12 @@ class grade_report_multigrader extends grade_report {
                            AND ue.status = :uestatus
                            AND e.status = :estatus
                            AND e.courseid = :courseid
+                           AND ue.timestart < :now1 AND (ue.timeend = 0 OR ue.timeend > :now2)
                   GROUP BY ue.userid";
-            $coursecontext = get_course_context($this->context);
-            $params = array_merge($uparams, array('estatus' => ENROL_INSTANCE_ENABLED, 'uestatus' => ENROL_USER_ACTIVE, 'courseid' => $coursecontext->instanceid));
+            $coursecontext = $this->context->get_course_context(true);
+            $time = time();
+            $params = array_merge($uparams, array('estatus' => ENROL_INSTANCE_ENABLED, 'uestatus' => ENROL_USER_ACTIVE,
+                    'courseid' => $coursecontext->instanceid, 'now1' => $time, 'now2' => $time));
             $useractiveenrolments = $DB->get_records_sql($sql, $params);
 
             $defaultgradeshowactiveenrol = !empty($CFG->grade_report_showonlyactiveenrol);
@@ -479,7 +484,6 @@ class grade_report_multigrader extends grade_report {
             }
         }
         }
-
         return $this->users;
     }
 
@@ -494,6 +498,10 @@ class grade_report_multigrader extends grade_report {
             return;
         }
 
+        if (empty($this->users)) {
+            return;
+        }
+
         // please note that we must fetch all grade_grades fields if we want to construct grade_grade object from it!
         $params = array_merge(array('courseid' => $this->courseid), $this->userselect_params);
         $sql = "SELECT g.*
@@ -502,7 +510,6 @@ class grade_report_multigrader extends grade_report {
                  WHERE g.itemid = gi.id AND gi.courseid = :courseid {$this->userselect}";
 
         $userids = array_keys($this->users);
-
 
         if ($grades = $DB->get_records_sql($sql, $params)) {
             foreach ($grades as $graderec) {
@@ -527,85 +534,28 @@ class grade_report_multigrader extends grade_report {
     }
 
     /**
-     * Builds and returns a div with on/off toggles.
-     * @return string HTML code
-     * @deprecated since 2.4 as it appears not to be used any more.
+     * Gets html toggle
+     * @deprecated since Moodle 2.4 as it appears not to be used any more.
      */
     public function get_toggles_html() {
-        global $CFG, $USER, $COURSE, $OUTPUT;
-        debugging('Call to deprecated function grade_report_grader::get_toggles_html().', DEBUG_DEVELOPER);
-        $html = '';
-
-
-        if ($this->canviewhidden) {
-            $html .= $this->print_toggle('averages');
+        throw new coding_exception('get_toggles_html() can not be used any more');
         }
-
-        $html .= $this->print_toggle('ranges');
-        if (!empty($CFG->enableoutcomes)) {
-            $html .= $this->print_toggle('nooutcomes');
-        }
-
-        return $OUTPUT->container($html, 'grade-report-toggles');
-    }
 
     /**
-     * Shortcut function for printing the multi grader report toggles.
-     * @param string $type The type of toggle
-     * @param bool $return Whether to return the HTML string rather than printing it
-     * @return void
+     * Prints html toggle
     * @deprecated since 2.4 as it appears not to be used any more.
+     * @param unknown $type
      */
     public function print_toggle($type) {
-        global $CFG, $OUTPUT;
-        debugging('Call to deprecated function grade_report_grader::print_toggle().', DEBUG_DEVELOPER);
-        $icons = array('eyecons' => 't/hide',
-            'calculations' => 't/calc',
-            'locks' => 't/lock',
-            'averages' => 't/mean',
-            'quickfeedback' => 't/feedback',
-            'nooutcomes' => 't/outcomes');
-
-        $prefname = 'grade_report_show' . $type;
-
-        if (array_key_exists($prefname, $CFG)) {
-            $showpref = get_user_preferences($prefname, $CFG->$prefname);
-        } else {
-            $showpref = get_user_preferences($prefname);
+        throw new coding_exception('print_toggle() can not be used any more');
         }
-
-        $strshow = $this->get_lang_string('show' . $type, 'grades');
-        $strhide = $this->get_lang_string('hide' . $type, 'grades');
-
-        $showhide = 'show';
-        $toggleaction = 1;
-
-        if ($showpref) {
-            $showhide = 'hide';
-            $toggleaction = 0;
-        }
-
-        if (array_key_exists($type, $icons)) {
-            $imagename = $icons[$type];
-        } else {
-            $imagename = "t/$type";
-        }
-
-        $string = ${'str' . $showhide};
-
-        $url = new moodle_url($this->baseurl, array('toggle' => $toggleaction, 'toggle_type' => $type));
-
-        $retval = $OUTPUT->container($OUTPUT->action_icon($url, new pix_icon($imagename, $string))); // TODO: this container looks wrong here
-
-        $retval = '';
-        return $retval;
-    }
 
     /**
-     * Builds and returns the rows that will make up the left part of the multi grader report
+     * Builds and returns the rows that will make up the left part of the grader report
      * This consists of student names and icons, links to user reports and id numbers, as well
      * as header cells for these columns. It also includes the fillers required for the
      * categories displayed on the right side of the report.
+     * @param boolean $displayaverages whether to display average rows in the table
      * @return array Array of html_table_row objects
      */
     public function get_left_rows() {
@@ -1267,17 +1217,19 @@ class grade_report_multigrader extends grade_report {
 
         $totalcount = $this->get_numusers($grouponly);
 
-        //limit to users with a gradeable role
+        // Limit to users with a gradeable role.
         list($gradebookrolessql, $gradebookrolesparams) = $DB->get_in_or_equal(explode(',', $this->gradebookroles), SQL_PARAMS_NAMED, 'grbr0');
 
-        //limit to users with an active enrollment
+        // Limit to users with an active enrollment.
         list($enrolledsql, $enrolledparams) = get_enrolled_sql($this->context);
 
-        if ($showaverages) {
-            $params = array_merge(array('courseid' => $this->courseid), $gradebookrolesparams, $enrolledparams, $groupwheresqlparams);
+        // We want to query both the current context and parent contexts.
+        list($relatedctxsql, $relatedctxparams) = $DB->get_in_or_equal($this->context->get_parent_context_ids(true), SQL_PARAMS_NAMED, 'relatedctx');
 
-            // find sums of all grade items in course
-            $sql = "SELECT g.itemid, SUM(g.finalgrade) AS sum
+        $params = array_merge(array('courseid' => $this->courseid), $gradebookrolesparams, $enrolledparams, $groupwheresqlparams, $relatedctxparams);
+
+        // Find sums of all grade items in course.
+        $sql = "SELECT g.itemid, SUM(g.finalgrade) AS sum
                       FROM {grade_items} gi
                       JOIN {grade_grades} g ON g.itemid = gi.id
                       JOIN {user} u ON u.id = g.userid
@@ -1286,7 +1238,7 @@ class grade_report_multigrader extends grade_report {
                                SELECT DISTINCT ra.userid
                                  FROM {role_assignments} ra
                                 WHERE ra.roleid $gradebookrolessql
-                                  AND ra.contextid " . get_related_contexts_string($this->context) . "
+                                  AND ra.contextid $relatedctxsql
                            ) rainner ON rainner.userid = u.id
                       $groupsql
                      WHERE gi.courseid = :courseid
@@ -1294,16 +1246,16 @@ class grade_report_multigrader extends grade_report {
                        AND g.finalgrade IS NOT NULL
                        $groupwheresql
                      GROUP BY g.itemid";
-            $sumarray = array();
-            if ($sums = $DB->get_records_sql($sql, $params)) {
-                foreach ($sums as $itemid => $csum) {
-                    $sumarray[$itemid] = $csum->sum;
-                }
+        $sumarray = array();
+        if ($sums = $DB->get_records_sql($sql, $params)) {
+            foreach ($sums as $itemid => $csum) {
+                $sumarray[$itemid] = $csum->sum;
             }
+        }
 
-            // MDL-10875 Empty grades must be evaluated as grademin, NOT always 0
-            // This query returns a count of ungraded grades (NULL finalgrade OR no matching record in grade_grades table)
-            $sql = "SELECT gi.id, COUNT(DISTINCT u.id) AS count
+        // MDL-10875 Empty grades must be evaluated as grademin, NOT always 0
+        // This query returns a count of ungraded grades (NULL finalgrade OR no matching record in grade_grades table)
+        $sql = "SELECT gi.id, COUNT(DISTINCT u.id) AS count
                       FROM {grade_items} gi
                       CROSS JOIN {user} u
                       JOIN ($enrolledsql) je
@@ -1315,84 +1267,80 @@ class grade_report_multigrader extends grade_report {
                       $groupsql
                      WHERE gi.courseid = :courseid
                            AND ra.roleid $gradebookrolessql
-                           AND ra.contextid " . get_related_contexts_string($this->context) . "
+                           AND ra.contextid $relatedctxsql
                            AND u.deleted = 0
                            AND g.id IS NULL
                            $groupwheresql
                   GROUP BY gi.id";
 
-            $ungradedcounts = $DB->get_records_sql($sql, $params);
+        $ungradedcounts = $DB->get_records_sql($sql, $params);
 
-            $avgrow = new html_table_row();
-            $avgrow->attributes['class'] = 'avg';
+        $avgrow = new html_table_row();
+        $avgrow->attributes['class'] = 'avg';
 
-            foreach ($this->gtree->items as $itemid => $unused) {
-                $item = & $this->gtree->items[$itemid];
+        foreach ($this->gtree->items as $itemid => $unused) {
+            $item = & $this->gtree->items[$itemid];
 
-                if ($item->needsupdate) {
-                    $avgcell = new html_table_cell();
-                    $avgcell->text = $OUTPUT->container(get_string('error'), 'gradingerror');
-                    $avgrow->cells[] = $avgcell;
-                    continue;
-                }
-
-                if (!isset($sumarray[$item->id])) {
-                    $sumarray[$item->id] = 0;
-                }
-
-                if (empty($ungradedcounts[$itemid])) {
-                    $ungradedcount = 0;
-                } else {
-                    $ungradedcount = $ungradedcounts[$itemid]->count;
-                }
-
-                if ($meanselection == GRADE_REPORT_MEAN_GRADED) {
-                    $meancount = $totalcount - $ungradedcount;
-                } else { // Bump up the sum by the number of ungraded items * grademin
-                    $sumarray[$item->id] += $ungradedcount * $item->grademin;
-                    $meancount = $totalcount;
-                }
-
-                $decimalpoints = $item->get_decimals();
-
-                // Determine which display type to use for this average
-                if ($averagesdisplaytype == GRADE_REPORT_PREFERENCE_INHERIT) { // no ==0 here, please resave the report and user preferences
-                    $displaytype = $item->get_displaytype();
-
-                } else {
-                    $displaytype = $averagesdisplaytype;
-                }
-
-                // Override grade_item setting if a display preference (not inherit) was set for the averages
-                if ($averagesdecimalpoints == GRADE_REPORT_PREFERENCE_INHERIT) {
-                    $decimalpoints = $item->get_decimals();
-
-                } else {
-                    $decimalpoints = $averagesdecimalpoints;
-                }
-
-                if (!isset($sumarray[$item->id]) || $meancount == 0) {
-                    $avgcell = new html_table_cell();
-                    $avgcell->text = '-';
-                    $avgrow->cells[] = $avgcell;
-
-                } else {
-                    $sum = $sumarray[$item->id];
-                    $avgradeval = $sum / $meancount;
-                    $gradehtml = grade_format_gradevalue($avgradeval, $item, true, $displaytype, $decimalpoints);
-
-                    $numberofgrades = '';
-                    if ($shownumberofgrades) {
-                        $numberofgrades = " ($meancount)";
-                    }
-
-                    $avgcell = new html_table_cell();
-                    $avgcell->text = $gradehtml . $numberofgrades;
-                    $avgrow->cells[] = $avgcell;
-                }
+            if ($item->needsupdate) {
+                $avgcell = new html_table_cell();
+                $avgcell->text = $OUTPUT->container(get_string('error'), 'gradingerror');
+                $avgrow->cells[] = $avgcell;
+                continue;
             }
-            $rows[] = $avgrow;
+
+            if (!isset($sumarray[$item->id])) {
+                $sumarray[$item->id] = 0;
+            }
+
+            if (empty($ungradedcounts[$itemid])) {
+                $ungradedcount = 0;
+            } else {
+                $ungradedcount = $ungradedcounts[$itemid]->count;
+            }
+
+            if ($meanselection == GRADE_REPORT_MEAN_GRADED) {
+                $meancount = $totalcount - $ungradedcount;
+            } else { // Bump up the sum by the number of ungraded items * grademin
+                $sumarray[$item->id] += $ungradedcount * $item->grademin;
+                $meancount = $totalcount;
+            }
+
+            $decimalpoints = $item->get_decimals();
+
+            // Determine which display type to use for this average
+            if ($averagesdisplaytype == GRADE_REPORT_PREFERENCE_INHERIT) { // no ==0 here, please resave the report and user preferences
+                $displaytype = $item->get_displaytype();
+            } else {
+                $displaytype = $averagesdisplaytype;
+            }
+
+            // Override grade_item setting if a display preference (not inherit) was set for the averages
+            if ($averagesdecimalpoints == GRADE_REPORT_PREFERENCE_INHERIT) {
+                $decimalpoints = $item->get_decimals();
+            } else {
+                $decimalpoints = $averagesdecimalpoints;
+            }
+
+            if (!isset($sumarray[$item->id]) || $meancount == 0) {
+                $avgcell = new html_table_cell();
+                $avgcell->text = '-';
+                $avgrow->cells[] = $avgcell;
+            } else {
+                $sum = $sumarray[$item->id];
+                $avgradeval = $sum / $meancount;
+                $gradehtml = grade_format_gradevalue($avgradeval, $item, true, $displaytype, $decimalpoints);
+
+                $numberofgrades = '';
+                if ($shownumberofgrades) {
+                    $numberofgrades = " ($meancount)";
+                }
+
+                $avgcell = new html_table_cell();
+                $avgcell->text = $gradehtml . $numberofgrades;
+                $avgrow->cells[] = $avgcell;
+            }
         }
+        $rows[] = $avgrow;
         return $rows;
     }
 

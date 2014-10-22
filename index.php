@@ -23,12 +23,12 @@
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-require_once '../../../config.php';
-require_once $CFG->libdir . '/gradelib.php';
-require_once $CFG->dirroot . '/grade/lib.php';
-require_once $CFG->dirroot . '/grade/report/multigrader/lib.php';
-require_once $CFG->libdir . '/coursecatlib.php';
-require_once $CFG->dirroot . '/grade/report/multigrader/categorylib.php';
+require_once('../../../config.php');
+require_once($CFG->libdir . '/gradelib.php');
+require_once($CFG->dirroot . '/grade/lib.php');
+require_once($CFG->dirroot . '/grade/report/multigrader/lib.php');
+require_once($CFG->libdir . '/coursecatlib.php');
+require_once($CFG->dirroot . '/grade/report/multigrader/categorylib.php');
 
 $PAGE->requires->js('/grade/report/multigrader/checkboxtree/js/jquery-latest.js', true);
 $PAGE->requires->js('/grade/report/multigrader/checkboxtree/js/jquery-ui.min.js', true);
@@ -147,15 +147,33 @@ if ($formsubmitted === "Yes") {
 
         foreach ($courses as $thiscourse) {
             $courseid = $thiscourse->id;
-            $context = get_context_instance(CONTEXT_COURSE, $courseid);
+            $context = context_course::instance($courseid);
             if (has_capability('moodle/grade:viewall', $context)) {
                 if (has_capability('gradereport/multigrader:view', $context)) {
 
-                    echo '<br/><br/><hr/><b><a href="' . $CFG->wwwroot . '/grade/report/grader/index.php?id=' . $thiscourse->id . '">' . $thiscourse->shortname . '</a></b>';
-                    echo '<br/><a href="' . $CFG->wwwroot . '/grade/export/xls/index.php?id=' . $thiscourse->id . '"><img src="' . $CFG->wwwroot . '/grade/report/multigrader/pix/excel.gif" alt="' . get_string('xls:view', 'gradeexport_xls') . '"/></a>';
-                    echo '<a href="' . $CFG->wwwroot . '/grade/export/ods/index.php?id=' . $thiscourse->id . '"><img src="' . $CFG->wwwroot . '/grade/report/multigrader/pix/ods.gif" alt="' . get_string('ods:view', 'gradeexport_ods') . '"/></a>';
-                    echo '<a href="' . $CFG->wwwroot . '/grade/export/xml/index.php?id=' . $thiscourse->id . '"><img src="' . $CFG->wwwroot . '/grade/report/multigrader/pix/xml.gif" alt="' . get_string('xml:view', 'gradeexport_xml') . '"/></a>';
-                    echo '<a href="' . $CFG->wwwroot . '/grade/export/txt/index.php?id=' . $thiscourse->id . '"><img src="' . $CFG->wwwroot . '/grade/report/multigrader/pix/text.gif" alt="' . get_string('txt:view', 'gradeexport_txt') . '"/></a>';
+                    echo '<br/><br/><hr/>';
+                    echo html_writer::tag('p', '<b><a href="' . $CFG->wwwroot . '/grade/report/grader/index.php?id=' . $thiscourse->id . '">' . $thiscourse->shortname . '</a></b>');
+                    echo '<br/>';
+                    $exportxlsurl = new moodle_url('/grade/export/xls/index.php', array('id' => $thiscourse->id));
+                    $xlsicon = html_writer::img($CFG->wwwroot . '/grade/report/multigrader/pix/excel.gif',
+                            get_string('xls:view', 'gradeexport_xls'));
+
+                    echo html_writer::div(html_writer::link($exportxlsurl, $xlsicon), 'export_padding');
+                    $exportodsurl = new moodle_url('/grade/export/ods/index.php', array('id' => $thiscourse->id));
+                    $odsicon = html_writer::img($CFG->wwwroot . '/grade/report/multigrader/pix/ods.gif',
+                            get_string('ods:view', 'gradeexport_ods'));
+
+                    echo html_writer::div(html_writer::link($exportodsurl, $odsicon), 'export_padding');
+                    $exportxmlurl = new moodle_url('/grade/export/xml/index.php', array('id' => $thiscourse->id));
+                    $xmlicon = html_writer::img($CFG->wwwroot . '/grade/report/multigrader/pix/xml.gif',
+                            get_string('xml:view', 'gradeexport_xml'));
+
+                    echo html_writer::div(html_writer::link($exportxmlurl, $xmlicon), 'export_padding');
+                    $exporttxturl = new moodle_url('/grade/export/txt/index.php', array('id' => $thiscourse->id));
+                    $txticon = html_writer::img($CFG->wwwroot . '/grade/report/multigrader/pix/text.gif',
+                            get_string('txt:view', 'gradeexport_txt'));
+
+                    echo html_writer::div(html_writer::link($exporttxturl, $txticon), 'export_padding');
                     $gpr = new grade_plugin_return(array('type' => 'report', 'plugin' => 'multigrader', 'courseid' => $courseid, 'page' => $page));
                     // Basic access checks.
                     $conditions = array("id" => $thiscourse->id);
@@ -163,7 +181,7 @@ if ($formsubmitted === "Yes") {
                         print_error('nocourseid');
                     }
 
-                    $context = get_context_instance(CONTEXT_COURSE, $thiscourse->id);
+                    $context = context_course::instance($thiscourse->id);
 
                     // Initialise the multi grader report object that produces the table
                     // The class grade_report_grader_ajax was removed as part of MDL-21562.
