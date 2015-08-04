@@ -30,10 +30,10 @@ require_once($CFG->dirroot . '/grade/report/multigrader/lib.php');
 require_once($CFG->libdir . '/coursecatlib.php');
 require_once($CFG->dirroot . '/grade/report/multigrader/categorylib.php');
 
-$PAGE->requires->js('/grade/report/multigrader/checkboxtree/js/jquery-latest.js', true);
-$PAGE->requires->js('/grade/report/multigrader/checkboxtree/js/jquery-ui.min.js', true);
-$PAGE->requires->js('/grade/report/multigrader/checkboxtree/js/jquery.checkboxtree.js', true);
-$PAGE->requires->css('/grade/report/multigrader/checkboxtree/css/themes/base/ui.all.css');
+$PAGE->requires->jquery();
+$PAGE->requires->jquery_plugin('ui');
+$PAGE->requires->jquery_plugin('ui-css');
+$PAGE->requires->jquery_plugin('checkboxtree', 'gradereport_multigrader');
 $PAGE->requires->css('/grade/report/multigrader/checkboxtree/css/checkboxtree.css');
 
 // end of insert
