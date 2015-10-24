@@ -698,15 +698,6 @@ class grade_report_multigrader extends grade_report {
         $strfeedback = $this->get_lang_string("feedback");
         $arrows = $this->get_sort_arrows();
 
-        $jsarguments = array(
-            'id' => '#fixed_column',
-            'cfg' => array('ajaxenabled' => false),
-            'items' => array(),
-            'users' => array(),
-            'feedback' => array()
-        );
-        $jsscales = array();
-
         foreach ($this->gtree->get_levels() as $key => $row) {
             if ($key == 0) {
                 // do not display course grade category
@@ -807,9 +798,7 @@ class grade_report_multigrader extends grade_report {
             $scale = null;
             if (!empty($item->scaleid)) {
                 $scaleslist[] = $item->scaleid;
-                $jsarguments['items'][$itemid] = array('id' => $itemid, 'name' => $item->get_name(true), 'type' => 'scale', 'scale' => $item->scaleid, 'decimals' => $item->get_decimals());
-            } else {
-                $jsarguments['items'][$itemid] = array('id' => $itemid, 'name' => $item->get_name(true), 'type' => 'value', 'scale' => false, 'decimals' => $item->get_decimals());
+                            } else {
             }
             $tabindices[$item->id]['grade'] = $gradetabindex;
             $tabindices[$item->id]['feedback'] = $gradetabindex + $numusers;
@@ -820,7 +809,6 @@ class grade_report_multigrader extends grade_report {
         if (!empty($scaleslist)) {
             $scalesarray = $DB->get_records_list('scale', 'id', $scaleslist);
         }
-        $jsscales = $scalesarray;
 
         $rowclasses = array('even', 'odd');
 
@@ -841,8 +829,6 @@ class grade_report_multigrader extends grade_report {
             $itemrow->id = 'user_' . $userid;
             $itemrow->attributes['class'] = $rowclasses[$this->rowcount % 2];
 
-            $jsarguments['users'][$userid] = fullname($user);
-
             foreach ($this->gtree->items as $itemid => $unused) {
                 $item = & $this->gtree->items[$itemid];
                 $grade = $this->grades[$userid][$item->id];
@@ -860,15 +846,6 @@ class grade_report_multigrader extends grade_report {
                     $gradeval = $altered[$itemid];
                 } else {
                     $gradeval = $grade->finalgrade;
-                }
-                if (!empty($grade->finalgrade)) {
-                    $gradevalforJS = null;
-                    if ($item->scaleid && !empty($scalesarray[$item->scaleid])) {
-                        $gradevalforJS = (int) $gradeval;
-                    } else {
-                        $gradevalforJS = format_float($gradeval, $decimalpoints);
-                    }
-                    $jsarguments['grades'][] = array('user' => $userid, 'item' => $itemid, 'grade' => $gradevalforJS);
                 }
 
                 // MDL-11274
@@ -901,11 +878,6 @@ class grade_report_multigrader extends grade_report {
 
                 if ($grade->is_excluded()) {
                     // $itemcell->attributes['class'] .= ' excluded';
-                }
-
-                if (!empty($grade->feedback)) {
-                    //should we be truncating feedback? ie $short_feedback = shorten_text($feedback, $this->feedback_trunc_length);
-                    $jsarguments['feedback'][] = array('user' => $userid, 'item' => $itemid, 'content' => wordwrap(trim(format_string($grade->feedback, $grade->feedbackformat)), 34, '<br/ >'));
                 }
 
                 if ($grade->is_excluded()) {
@@ -961,30 +933,6 @@ class grade_report_multigrader extends grade_report {
             }
             $rows[] = $itemrow;
         }
-
-        if ($this->get_pref('enableajax')) {
-            $jsarguments['cfg']['ajaxenabled'] = true;
-            $jsarguments['cfg']['scales'] = array();
-            foreach ($jsscales as $scale) {
-                $jsarguments['cfg']['scales'][$scale->id] = explode(',', $scale->scale);
-            }
-            $jsarguments['cfg']['feedbacktrunclength'] = $this->feedback_trunc_length;
-
-            // Student grades and feedback are already at $jsarguments['feedback'] and $jsarguments['grades']
-        }
-
-        $jsarguments['cfg']['courseid'] = $this->courseid;
-        $jsarguments['cfg']['studentsperpage'] = $this->get_students_per_page();
-        $jsarguments['cfg']['showquickfeedback'] = (bool) $this->get_pref('showquickfeedback');
-
-        $module = array(
-            'name' => 'gradereport_multigrader',
-            'fullpath' => '/grade/report/multigrader/module.js',
-            'requires' => array('base', 'dom', 'event', 'event-mouseenter', 'event-key', 'io-queue', 'json-parse', 'overlay')
-        );
-        $PAGE->requires->js_init_call('M.gradereport_multigrader.init_report', $jsarguments, false, $module);
-        $PAGE->requires->strings_for_js(array('addfeedback', 'feedback', 'grade'), 'grades');
-        $PAGE->requires->strings_for_js(array('ajaxchoosescale', 'ajaxclicktoclose', 'ajaxerror', 'ajaxfailedupdate', 'ajaxfieldchanged'), 'gradereport_multigrader');
 
         $rows = $this->get_right_range_row($rows);
         $rows = $this->get_right_avg_row($rows, true);
