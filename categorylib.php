@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Recursive function to print out all the categories in a nice format with courses included.
+ * Part one of recursive function pair to print out all the categories in a nice format with courses included.
  * 
  * @package   gradereport_multigrader
  * @copyright 2012 onwards Barry Oosthuizen http://elearningstudio.co.uk
@@ -32,27 +32,49 @@
 function gradereport_multigrader_print_category($category = null, $displaylist = null, $depth = -1, $files = true) {
     global $CFG;
 
-    if (isset($CFG->max_category_depth) && ($depth >= $CFG->max_category_depth)) {
+    if (isset($CFG->maxcategorydepth) && ($depth >= $CFG->maxcategorydepth)) {
         return;
     }
 
     if ($category) {
         if ($category->visible or has_capability('moodle/course:update', context_system::instance())) {
+            echo "<li>\n";
             gradereport_multigrader_print_category_info($category, $depth, $files);
+            gradereport_print_category_content($category->id, $displaylist, $depth, $files);
+            echo "</li>\n";
         } else {
             return;  // Don't bother printing children of invisible categories
         }
     } else {
         $category = new stdClass();
         $category->id = "0";
+        gradereport_print_category_content($category->id, $displaylist, $depth, $files);
     }
+}
 
-    if ($categories = coursecat::get($category->id)->get_children()) {   // Print all the children recursively
+/**
+ * Part two of recursive function pair to print out all the categories in a nice format with courses included.
+ * 
+ * @package   gradereport_multigrader
+ * @copyright 2012 onwards Barry Oosthuizen http://elearningstudio.co.uk
+ * @author    Barry Oosthuizen
+ * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * 
+ * @global stdClass $CFG
+ * @param int $categoryid
+ * @param int $displaylist
+ * @param int $depth
+ * @param bool $files
+ * @return type
+ */
+function gradereport_print_category_content($categoryid=0, $displaylist=null, $depth=-1, $files=true) {
+    if ($categories = coursecat::get($categoryid)->get_children()) {   // Print all the children recursively
+        echo "<ul>\n";
         foreach ($categories as $cat) {
             gradereport_multigrader_print_category($cat, $displaylist, $depth + 1, $files);
-            echo '</ul></li>';
         }
-    }
+        echo "</ul>\n";
+    }    
 }
 
 /**
@@ -73,45 +95,38 @@ function gradereport_multigrader_print_category_info($category, $depth, $files =
 
     $courses = get_courses($category->id, 'c.sortorder ASC', 'c.id,c.sortorder,c.visible,c.fullname,c.shortname');
     if ($depth) {
-        if (!$i == 0) {
-            echo '</li>';
-            $i = 1;
-        }
-
         if ($category->visible) {
-            echo '<li><input type="checkbox" name="category" id="catid' . $category->id . '"/>';
+            echo '<input type="checkbox" name="category" id="catid' . $category->id . '"/>';
             echo '<label>' . format_string($category->name) . '</label>';
         } else {
-            echo '<li><input type="checkbox" name="hiddencategory" id="catid' . $category->id . '"/>';
-            echo '<label>' . format_string($category->name) . '</label></li>';
+            echo '<input type="checkbox" name="hiddencategory" id="catid' . $category->id . '"/>';
+            echo '<label class="dimmed">' . format_string($category->name) . '</label>';
         }
     } else {
-        if (!$i == 0) {
-            echo '</li>';
-            $i = 1;
-        }
-
         if ($category->visible) {
-            echo '<li><input type="checkbox" name="category" id="catid' . $category->id . '"/>';
+            echo '<input type="checkbox" name="category" id="catid' . $category->id . '"/>';
             echo '<label>' . format_string($category->name) . '</label>';
         } else {
-            echo '<li><input type="checkbox" name="hiddencategory" id="catid' . $category->id . '"/>';
-            echo '<label>' . format_string($category->name) . '</label></li>';
+            echo '<input type="checkbox" name="hiddencategory" id="catid' . $category->id . '"/>';
+            echo '<label class="dimmed">' . format_string($category->name) . '</label>';
         }
     }
 
     if ($files and $coursecount) {
-        echo '<ul>';
-        if ($courses && !(isset($CFG->max_category_depth) && ($depth >= $CFG->max_category_depth - 1))) {
+        if ($courses && !(isset($CFG->maxcategorydepth) && ($depth >= $CFG->maxcategorydepth - 1))) {
+            echo "<ul>\n";
             foreach ($courses as $course) {
+                echo "<li>\n";
                 if ($course->visible) {
-                    echo '<li><input type="checkbox" name="coursebox[]" value="' . $course->id . '"/>';
-                    echo '<label>' . format_string($course->shortname) . '</label></li>';
+                    echo '<input type="checkbox" name="coursebox[]" value="' . $course->id . '"/>';
+                    echo '<label>' . format_string($course->shortname) . '</label>';
                 } else {
-                    echo '<li><input type="checkbox" name="coursebox[]" value="' . $course->id . '"/>';
-                    echo '<label>' . format_string($course->shortname) . '</label></li>';
+                    echo '<input type="checkbox" name="coursebox[]" value="' . $course->id . '"/>';
+                    echo '<label class="dimmed">' . format_string($course->shortname) . '</label>';
                 }
+                echo "</li>\n";
             }
+            echo "</ul>\n";
         }
     }
 }
