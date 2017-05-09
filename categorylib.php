@@ -25,22 +25,17 @@
  * @global stdClass $CFG
  * @param stdClass $category
  * @param int $displaylist
- * @param int $depth
  * @param bool $files
  * @return type
  */
-function gradereport_multigrader_print_category($category = null, $displaylist = null, $depth = -1, $files = true) {
+function gradereport_multigrader_print_category($category = null, $displaylist = null, $files = true) {
     global $CFG;
-
-    if (isset($CFG->max_category_depth) && ($depth >= $CFG->max_category_depth)) {
-        return;
-    }
 
     if ($category) {
         if ($category->visible or has_capability('moodle/course:update', context_system::instance())) {
             echo "<li>\n";
-            gradereport_multigrader_print_category_info($category, $depth, $files);
-            gradereport_print_category_content($category->id, $displaylist, $depth, $files);
+            gradereport_multigrader_print_category_info($category, $files);
+            gradereport_print_category_content($category->id, $displaylist, $files);
             echo "</li>\n";
         } else {
             return;  // Don't bother printing children of invisible categories
@@ -48,7 +43,7 @@ function gradereport_multigrader_print_category($category = null, $displaylist =
     } else {
         $category = new stdClass();
         $category->id = "0";
-        gradereport_print_category_content($category->id, $displaylist, $depth, $files);
+        gradereport_print_category_content($category->id, $displaylist, $files);
     }
 }
 
@@ -63,15 +58,14 @@ function gradereport_multigrader_print_category($category = null, $displaylist =
  * @global stdClass $CFG
  * @param int $categoryid
  * @param int $displaylist
- * @param int $depth
  * @param bool $files
  * @return type
  */
-function gradereport_print_category_content($categoryid=0, $displaylist=null, $depth=-1, $files=true) {
+function gradereport_print_category_content($categoryid=0, $displaylist=null, $files=true) {
     if ($categories = coursecat::get($categoryid)->get_children()) {   // Print all the children recursively
         echo "<ul>\n";
         foreach ($categories as $cat) {
-            gradereport_multigrader_print_category($cat, $displaylist, $depth + 1, $files);
+            gradereport_multigrader_print_category($cat, $displaylist, $files);
         }
         echo "</ul>\n";
     }    
@@ -84,36 +78,25 @@ function gradereport_print_category_content($categoryid=0, $displaylist=null, $d
  * @global stdClass $CFG
  * @global stdClass $DB
  * @param object $category
- * @param int $depth
  * @param bool $files
  */
-function gradereport_multigrader_print_category_info($category, $depth, $files = false) {
+function gradereport_multigrader_print_category_info($category, $files = false) {
     global $CFG, $DB;
 
     $coursecount = $DB->count_records('course') <= $CFG->frontpagecourselimit;
     $i = 0;
 
     $courses = get_courses($category->id, 'c.sortorder ASC', 'c.id,c.sortorder,c.visible,c.fullname,c.shortname');
-    if ($depth) {
-        if ($category->visible) {
-            echo '<input type="checkbox" name="category" id="catid' . $category->id . '"/>';
-            echo '<label>' . format_string($category->name) . '</label>';
-        } else {
-            echo '<input type="checkbox" name="hiddencategory" id="catid' . $category->id . '"/>';
-            echo '<label class="dimmed">' . format_string($category->name) . '</label>';
-        }
+    if ($category->visible) {
+        echo '<input type="checkbox" name="category" id="catid' . $category->id . '"/>';
+        echo '<label>' . format_string($category->name) . '</label>';
     } else {
-        if ($category->visible) {
-            echo '<input type="checkbox" name="category" id="catid' . $category->id . '"/>';
-            echo '<label>' . format_string($category->name) . '</label>';
-        } else {
-            echo '<input type="checkbox" name="hiddencategory" id="catid' . $category->id . '"/>';
-            echo '<label class="dimmed">' . format_string($category->name) . '</label>';
-        }
+        echo '<input type="checkbox" name="hiddencategory" id="catid' . $category->id . '"/>';
+        echo '<label class="dimmed">' . format_string($category->name) . '</label>';
     }
 
     if ($files and $coursecount) {
-        if ($courses && !(isset($CFG->max_category_depth) && ($depth >= $CFG->max_category_depth - 1))) {
+        if ($courses) {
             echo "<ul>\n";
             foreach ($courses as $course) {
                 echo "<li>\n";
