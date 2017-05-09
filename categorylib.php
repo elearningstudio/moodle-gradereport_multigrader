@@ -32,7 +32,7 @@
 function gradereport_multigrader_print_category($category = null, $displaylist = null, $depth = -1, $files = true) {
     global $CFG;
 
-    if (isset($CFG->max_category_depth) && ($depth >= $CFG->max_category_depth)) {
+    if (isset($CFG->maxcategorydepth) && ($depth >= $CFG->maxcategorydepth)) {
         return;
     }
 
@@ -113,7 +113,7 @@ function gradereport_multigrader_print_category_info($category, $depth, $files =
     }
 
     if ($files and $coursecount) {
-        if ($courses && !(isset($CFG->max_category_depth) && ($depth >= $CFG->max_category_depth - 1))) {
+        if ($courses && !(isset($CFG->maxcategorydepth) && ($depth >= $CFG->maxcategorydepth - 1))) {
             echo "<ul>\n";
             foreach ($courses as $course) {
                 echo "<li>\n";
